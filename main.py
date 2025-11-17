@@ -1,8 +1,11 @@
 import os
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, EmailStr, Field
+from typing import Optional
+from database import create_document
 
-app = FastAPI()
+app = FastAPI(title="Prompt Optimizer SaaS API")
 
 app.add_middleware(
     CORSMiddleware,
@@ -12,13 +15,26 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+class ContactRequest(BaseModel):
+    name: str = Field(..., min_length=2, max_length=120)
+    email: EmailStr
+    company: Optional[str] = Field(None, max_length=120)
+    subject: Optional[str] = Field(None, max_length=200)
+    message: str = Field(..., min_length=5, max_length=5000)
+    plan: Optional[str] = Field(None)
+
 @app.get("/")
 def read_root():
-    return {"message": "Hello from FastAPI Backend!"}
+    return {"message": "Prompt Optimizer SaaS Backend Running"}
 
-@app.get("/api/hello")
-def hello():
-    return {"message": "Hello from the backend API!"}
+@app.post("/api/contact")
+async def submit_contact(payload: ContactRequest):
+    try:
+        # Store in Mongo collection "contactmessage" (lowercase of schema Contactmessage)
+        inserted_id = create_document("contactmessage", payload.model_dump())
+        return {"ok": True, "id": inserted_id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/test")
 def test_database():
